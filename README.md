@@ -1,7 +1,7 @@
 ## 🏗️ Arquitetura do Pipeline 
 
 ### 📁 1. Ingestão e Camada Bronze (Raw)
-* **Passo 1 (Dataset):** Utilização do dataset público MovieLens (ml_belief_2024) focado em comportamento cinematográfico.
+* **Passo 1 (Dataset):** Utilização do dataset público MovieLens (https://grouplens.org/datasets/movielens/ml_belief_2024/) focado em comportamento cinematográfico.
 * **Passo 2 (Cloud Storage):** Criação de um bucket no Google Cloud Storage (GCS) estruturado com a pasta `/bronze` para armazenamento dos arquivos CSV originais de filmes e avaliações.
 * **Passo 3 (Tabelas Externas):** Configuração de um dataset raw no Google BigQuery apontando tabelas externas diretamente para o GCS. Todas as colunas foram tipadas inicialmente como `STRING` para evitar quebras por valores nulos (`NA`) ou problemas de formatação.
 
