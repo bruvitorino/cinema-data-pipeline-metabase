@@ -1,7 +1,10 @@
 -- ==========================================
 -- 1. CAMADA SILVER: MODELAGEM DIMENSIONAL
+dim_movies
+  - título
+  - gêneros
+  - ano de lançamento
 -- ==========================================
-
 CREATE OR REPLACE TABLE silver_cinema.dim_movies AS
 SELECT
   SAFE_CAST(movie_id AS INT64) AS movie_id,
@@ -10,12 +13,15 @@ SELECT
   -- Extrai o ano de lançamento de dentro dos parênteses do título, se houver
   SAFE_CAST(REGEXP_EXTRACT(title, r'\((\d{4})\)') AS INT64) AS release_year
 FROM
-  belief_data.movie_elicitation_set; -- Sua tabela raw de filmes
+  belief_data.movie_elicitation_set; -- tabela raw de filmes
 
 -- ==========================================
 -- 2. CAMADA SILVER: MODELAGEM FATOS
+fact_ratings
+    - unificação dos ratings
+    - limpeza com SAFE_CAST
+    - parse de timestamps
 -- ==========================================
-
 CREATE OR REPLACE TABLE silver_cinema.fact_ratings AS
 SELECT
   SAFE_CAST(user_id AS INT64) AS user_id,
@@ -24,34 +30,17 @@ SELECT
   -- Faz o parse do timestamp Unix para o formato de DATA/HORA real
   TIMESTAMP_SECONDS(SAFE_CAST(timestamp AS INT64)) AS rating_timestamp
 FROM
-  belief_data.fact_ratings_raw; -- Sua tabela raw de ratings
+  belief_data.fact_ratings_raw; -- tabela raw de ratings
 
 -- ==========================================
 -- 3. CAMADA GOLD: VIEWS ANALÍTICAS
--- ==========================================
-
--- ==========================================
--- vw_genre_performance
--- ==========================================
-CREATE OR REPLACE VIEW silver_cinema.vw_genre_performance AS
-SELECT
-  m.genres,
-  -- Calculando a média de nota para o gênero como um todo
-  ROUND(AVG(r.rating), 2) AS rating_medio_genero,
-  -- Volume total de votos que este gênero recebeu
-  COUNT(r.movie_id) AS total_avaliacoes_genero,
-  -- Quantidade de filmes diferentes que pertencem a este gênero
-  COUNT(DISTINCT m.movie_id) AS total_filmes_genero
-FROM
-  `silver_cinema.dim_movies` m
-INNER JOIN
-  `silver_cinema.fact_ratings` r ON m.movie_id = r.movie_id
-WHERE
-  r.rating >= 0
-GROUP BY
-  m.genres
-ORDER BY
-  total_avaliacoes_genero DESC;
+Views criadas:
+  - vw_movie_kpis
+  - vw_top_movies (Top 10 filmes por rating médio)
+  - vw_ratings_heatmap
+  - vw_scatter_popularity_vs_quality
+  - vw_user_activity
+  - vw_genre_performance
 
 -- ==========================================
 -- vw_movie_kpis
@@ -72,6 +61,27 @@ WHERE
   r.rating >= 0
 GROUP BY
   m.movie_id, m.title, m.release_year, m.genres;
+
+-- ==========================================
+-- vw_top_movies (Top 10 filmes por rating médio)
+-- ==========================================
+CREATE OR REPLACE VIEW silver_cinema.vw_top_movies AS
+SELECT
+  movie_id,
+  title,
+  release_year,
+  genres,
+  rating_medio,
+  total_avaliacoes
+FROM
+  `silver_cinema.vw_movie_kpis`
+WHERE
+  -- Filtro de relevância: garante que o filme tenha uma amostragem mínima de votos
+  total_avaliacoes > 10 
+ORDER BY
+  rating_medio DESC,
+  total_avaliacoes DESC
+LIMIT 10;
 
 -- ==========================================
 -- vw_ratings_heatmap
@@ -143,3 +153,27 @@ WHERE
   rating >= 0
 GROUP BY
   user_id;
+
+-- ==========================================
+-- vw_genre_performance
+-- ==========================================
+CREATE OR REPLACE VIEW silver_cinema.vw_genre_performance AS
+SELECT
+  m.genres,
+  -- Calculando a média de nota para o gênero como um todo
+  ROUND(AVG(r.rating), 2) AS rating_medio_genero,
+  -- Volume total de votos que este gênero recebeu
+  COUNT(r.movie_id) AS total_avaliacoes_genero,
+  -- Quantidade de filmes diferentes que pertencem a este gênero
+  COUNT(DISTINCT m.movie_id) AS total_filmes_genero
+FROM
+  `silver_cinema.dim_movies` m
+INNER JOIN
+  `silver_cinema.fact_ratings` r ON m.movie_id = r.movie_id
+WHERE
+  r.rating >= 0
+GROUP BY
+  m.genres
+ORDER BY
+  total_avaliacoes_genero DESC;
+
